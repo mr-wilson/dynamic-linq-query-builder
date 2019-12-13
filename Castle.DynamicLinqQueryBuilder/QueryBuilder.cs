@@ -271,34 +271,113 @@ namespace Castle.DynamicLinqQueryBuilder
             while (propertyCollectionEnumerator.MoveNext())
             {
                 var propertyName = propertyCollectionEnumerator.Current;
-                var property = expression.Type.GetProperty(propertyName);
-                expression = Expression.Property(expression, property);
 
-                var propertyType = property.PropertyType;
-                var enumerable = propertyType.GetInterface("IEnumerable`1");
-                if (propertyType != typeof(string) && enumerable != null)
+                if (propertyName.Contains("["))
                 {
-                    var elementType = enumerable.GetGenericArguments()[0];
-                    var predicateFnType = typeof(Func<,>).MakeGenericType(elementType, typeof(bool));
-                    var parameterExpression = Expression.Parameter(elementType);
+                    expression = BuildElementAccessExpression(expression, propertyCollectionEnumerator, rule, options, type);
+                }
+                else
+                {
+                    var property = expression.Type.GetProperty(propertyName);
+                    expression = Expression.Property(expression, property);
 
-                    Expression body = BuildNestedExpression(parameterExpression, propertyCollectionEnumerator, rule, options, type);
-                    var predicate = Expression.Lambda(predicateFnType, body, parameterExpression);
+                    var propertyType = property.PropertyType;
+                    var enumerable = propertyType.GetInterface("IEnumerable`1");
+                    if (propertyType != typeof(string) && enumerable != null)
+                    {
+                        var elementType = enumerable.GetGenericArguments()[0];
+                        var predicateFnType = typeof(Func<,>).MakeGenericType(elementType, typeof(bool));
+                        var parameterExpression = Expression.Parameter(elementType);
 
-                    var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { elementType }, expression);
+                        Expression body = BuildNestedExpression(parameterExpression, propertyCollectionEnumerator, rule, options, type);
 
-                    return Expression.Call(
-                        typeof(Queryable),
-                        "Any", 
-                        new[] { elementType },
-                        queryable,
-                        predicate
-                    );
+                        var predicate = Expression.Lambda(predicateFnType, body, parameterExpression);
+
+                        var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { elementType }, expression);
+
+                        return Expression.Call(
+                            typeof(Queryable),
+                            "Any",
+                            new[] { elementType },
+                            queryable,
+                            predicate
+                        );
+                    }
                 }
             }
 
             return BuildOperatorExpression(expression, rule, options, type);
         }
+
+
+        private static Expression BuildElementAccessExpression(Expression expression, IEnumerator<string> propertyCollectionEnumerator, IFilterRule rule, BuildExpressionOptions options, Type type)
+        {
+            var propertyName = propertyCollectionEnumerator.Current;
+
+            var leftBraceIndex = propertyName.IndexOf("[");
+            var rightBraceIndex = propertyName.IndexOf("]");
+
+            if (leftBraceIndex > -1)
+            {
+                propertyName = propertyName.Substring(0, leftBraceIndex);
+            }
+
+            var property = expression.Type.GetProperty(propertyName);
+            expression = Expression.Property(expression, property);
+
+
+
+            var propertyType = property.PropertyType;
+            var enumerable = propertyType.GetInterface("IEnumerable`1");
+            var dictionary = propertyType.GetInterface("IDictionary`2");
+
+            var dictionaryKeyValuePairType = enumerable.GetGenericArguments()[0];
+
+
+            var dictionaryTypes = dictionary.GetGenericArguments();
+            var dictionaryKeyType = dictionaryTypes[0];
+            var dictionaryValueType = dictionaryTypes[1];
+
+            if (dictionaryKeyType != typeof(string))
+            {
+                throw new NotSupportedException("Only Dictionaries with string keys are supported at present.");
+            }
+
+            var dictionaryKeyValue = propertyCollectionEnumerator.Current.Substring(leftBraceIndex + 2, propertyCollectionEnumerator.Current.Length - leftBraceIndex - 4);
+
+            ParameterExpression valueBag = Expression.Parameter(propertyType, "valueBag");
+            ConstantExpression key = Expression.Constant(dictionaryKeyValue, dictionaryKeyType);
+            ParameterExpression result = Expression.Parameter(dictionaryValueType, "result");
+
+            BlockExpression block = Expression.Block(
+                new[] { result },               //make the result a variable in scope for the block           
+                Expression.Assign(result, Expression.Property(valueBag, "Item", key)),
+                result                          //last value Expression becomes the return of the block 
+            );
+
+            var indexExpression = Expression.Property(valueBag, "Item", key);
+            var predicateFnType = typeof(Func<,>).MakeGenericType(dictionaryValueType, typeof(bool));
+            Expression body = BuildNestedExpression(indexExpression, propertyCollectionEnumerator, rule, options, type);
+
+            //return body;
+
+            //Expression body = BuildNestedExpression(result, propertyCollectionEnumerator, rule, options, type);
+            var predicate = Expression.Lambda(predicateFnType, body, result);
+
+            var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { propertyType }, expression);
+            //var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { dictionaryKeyValuePairType }, expression);
+
+            return queryable;
+
+            //return Expression.Call(
+            //    typeof(Queryable),
+            //    "Any",
+            //    new[] { propertyType },
+            //    queryable,
+            //    predicate
+            //);
+        }
+
 
         private static Expression BuildOperatorExpression(Expression propertyExp, IFilterRule rule, BuildExpressionOptions options, Type type)
         {
