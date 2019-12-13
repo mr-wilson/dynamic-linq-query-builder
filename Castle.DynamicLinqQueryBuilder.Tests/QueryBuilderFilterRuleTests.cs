@@ -3039,6 +3039,51 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
             result = new[] { new IndexedClass() }.BuildQuery(rule, true, "Item");
             Assert.IsFalse(result.Any());
         }
+
+
+        private class DictionaryClass
+        {
+            public DictionaryClass() { Data = new Dictionary<string, DataValue>(); }
+
+            public Dictionary<string, DataValue> Data { get; set; }
+            
+        }
+
+        private class DataValue
+        { 
+            public string StringValue { get; set; }
+        }
+
+        [Test]
+        public void Dictionary_Test()
+        {
+            var rule = new JsonNetFilterRule()
+            {
+                Condition = "and",
+                Rules = new List<JsonNetFilterRule>() { 
+                    new JsonNetFilterRule() {
+                        Field = "Data[\"myKey\"].StringValue",
+                        Id = "MyKey",
+                        Input = "text",
+                        Operator = "equal",
+                        Type = "string",
+                        Value = "BillyBob" 
+                    }
+                }
+            };
+
+            var d1 = new DictionaryClass();
+            d1.Data.Add("myKey", new DataValue() { StringValue = "BillyBob" });
+            var d2 = new DictionaryClass();
+            d2.Data.Add("myKey", new DataValue() { StringValue = "NotBillyBob" });
+
+            var result = new List<DictionaryClass> { d1, d2 }.AsQueryable().BuildQuery(rule,
+                new BuildExpressionOptions());
+
+            Assert.IsTrue(result.Any());
+        }
+
+
         #endregion
     }
 }
