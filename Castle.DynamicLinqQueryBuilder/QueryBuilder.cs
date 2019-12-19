@@ -325,12 +325,8 @@ namespace Castle.DynamicLinqQueryBuilder
             var propertyInfo = expression.Type.GetProperty(propertyName);
             var propertyExpression = Expression.Property(expression, propertyInfo);
 
-
             var propertyType = propertyInfo.PropertyType;
-            var enumerable = propertyType.GetInterface("IEnumerable`1");
             var dictionary = propertyType.GetInterface("IDictionary`2");
-
-            var dictionaryKeyValuePairType = enumerable.GetGenericArguments()[0];
 
             Type[] dictionaryTypes = dictionary.GetGenericArguments();
             Type dictionaryKeyType = dictionaryTypes[0];
@@ -341,24 +337,19 @@ namespace Castle.DynamicLinqQueryBuilder
                 throw new NotSupportedException("Only Dictionaries with string keys are supported at present.");
             }
 
-
             var dictionaryKeyValue = propertyCollectionEnumerator.Current.Substring(leftBraceIndex + 2, propertyCollectionEnumerator.Current.Length - leftBraceIndex - 4);
 
-            Type dictionaryType = dictionary;
-            PropertyInfo indexerProperty = dictionaryType.GetProperty("Item");
+            PropertyInfo indexerProperty = dictionary.GetProperty("Item");
             var dictionaryKeyConst = Expression.Constant(dictionaryKeyValue);
-
-            Type funcType = typeof(Func<,>).MakeGenericType(expression.Type, dictionaryValueType);
 
             var indexExpression = Expression.MakeIndex(propertyExpression, indexerProperty, new[] { dictionaryKeyConst });
 
             ParameterExpression valueExpression = Expression.Parameter(dictionaryValueType);
-            BinaryExpression assignment = Expression.Assign(indexExpression, valueExpression);
+            Expression.Assign(indexExpression, valueExpression);
 
             propertyCollectionEnumerator.MoveNext();
-
-            var test = Expression.Property(indexExpression, propertyCollectionEnumerator.Current);
-            return test;
+            var result = Expression.Property(indexExpression, propertyCollectionEnumerator.Current);
+            return result;
         }
 
 
