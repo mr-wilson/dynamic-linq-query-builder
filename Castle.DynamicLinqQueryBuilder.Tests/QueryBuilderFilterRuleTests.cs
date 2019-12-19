@@ -3081,6 +3081,10 @@ namespace Castle.DynamicLinqQueryBuilder.Tests
                 new BuildExpressionOptions());
 
             Assert.IsTrue(result.Any());
+
+            Assert.AreEqual(result.Count(), 1);
+            var resultList = result.ToList();
+            Assert.AreEqual(resultList[0].Data["myKey"].StringValue, "BillyBob");
         }
 
 

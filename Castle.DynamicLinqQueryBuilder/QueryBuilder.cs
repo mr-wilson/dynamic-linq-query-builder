@@ -274,7 +274,6 @@ namespace Castle.DynamicLinqQueryBuilder
 
                 if (propertyName.Contains("["))
                 {
-                    //expression = BuildElementAccessExpression(expression, propertyCollectionEnumerator, rule, options, type);
                     expression = BuildElementAccessExpression(expression, propertyCollectionEnumerator, rule, options, type);
                 }
                 else
@@ -344,218 +343,23 @@ namespace Castle.DynamicLinqQueryBuilder
 
 
             var dictionaryKeyValue = propertyCollectionEnumerator.Current.Substring(leftBraceIndex + 2, propertyCollectionEnumerator.Current.Length - leftBraceIndex - 4);
-            //ConstantExpression key = Expression.Constant(dictionaryKeyValue, dictionaryKeyType);
 
-            //Attempt 1
-            //============
-
-            //MethodInfo getItemMethod = propertyInfo.GetGetMethod();//.GetMethod("get_Item");//.GetType().GetMethod("get_Item");
-
-            //Expression dictionaryGetItemExpression = Expression.Call(key, getItemMethod);
-
-
-
-            //Attempt 2
-            //============
-
-            //ParameterExpression valueBag = Expression.Parameter(propertyType, "valueBag");
-            //ConstantExpression key = Expression.Constant(dictionaryKeyValue, dictionaryKeyType);
-            //ParameterExpression result = Expression.Parameter(dictionaryValueType, "result");
-
-            ////BlockExpression block = Expression.Block(
-            ////    new[] { valueBag, result },               //make the result a variable in scope for the block           
-            ////    Expression.Assign(result, Expression.Property(valueBag, "Item", new Expression[] { Expression.Constant(dictionaryKeyValue) })), //key)),
-            ////    result                          //last value Expression becomes the return of the block 
-            ////);
-
-            //BlockExpression block = Expression.Block(
-            //    new[] { result },               //make the result a variable in scope for the block           
-            //    Expression.Assign(result, Expression.Property(valueBag, "Item", new Expression[] { Expression.Constant(dictionaryKeyValue) })), //key)),
-            //    result                          //last value Expression becomes the return of the block 
-            //);
-
-
-            //return block;
-
-            //IndexExpression indexExpression = Expression.Property(valueBag, "Item", new Expression[] { Expression.Constant(dictionaryKeyValue) });
-
-
-
-
-            //Attempt 3
-            //============
-
-            //ParameterExpression parameterExpression = Expression.Parameter(dictionaryValueType);
-            //Expression member = parameterExpression;
-            ////member = Expression.Property(propertyName, "Data", new Expression[] { Expression.Constant(dictionaryKeyValue) });
-
-            ////IndexExpression indexedPropertyExpression = Expression.Property(expression, "Data", new Expression[] { Expression.Constant(dictionaryKeyValue) });
-            //IndexExpression indexExpression = Expression.Property(propertyExpression, "get_Item", new Expression[] { Expression.Constant(dictionaryKeyValue) });
-
-
-            //var test = Expression.Property(expression, propertyInfo, new Expression[] { indexExpression });
-
-
-
-            // Attempt 4
-            //==============
-
-            //var param = Expression.Parameter(propertyType);
-            //var bar = MemberExpression.Property(param, propertyName);
-            //Type dictionaryType = propertyType.GetProperty(propertyName).PropertyType;
-
-
-            //PropertyInfo indexerProp = propertyType.GetProperty("Item");
-            //var dictKeyConstant = Expression.Constant(dictionaryKeyValue);
-            //var dictAccess = Expression.MakeIndex(propertyExpression, indexerProp, new[] { dictKeyConstant });
-
-            //var indexPropertyType = indexerProp.PropertyType;
-            //var right = Expression.Constant(Convert.ChangeType("newValue", indexPropertyType));
-
-            //var expression2 = Expression.MakeBinary(ExpressionType.Equal, dictAccess, right);
-
-
-
-            //var obj = expression;// Expression.Parameter(type);
-            var propertyExp = MemberExpression.Property(expression, "Data");
-
-            Type dictionaryType = dictionary; //type.GetProperty("Data").PropertyType;
+            Type dictionaryType = dictionary;
             PropertyInfo indexerProperty = dictionaryType.GetProperty("Item");
             var dictionaryKeyConst = Expression.Constant(dictionaryKeyValue);
 
-            //This is what I need to create generically:
-            //var expr = Expression.Lambda<Func<Product, dictionaryValueType>> (Expression.MakeIndex(propertyExp, indexerProperty, new[] { dictionaryKeyConst }));
             Type funcType = typeof(Func<,>).MakeGenericType(expression.Type, dictionaryValueType);
 
-            var indexExpression = Expression.MakeIndex(propertyExp, indexerProperty, new[] { dictionaryKeyConst });
-
-            //  \/ This is very close, but the expression type when mapping the next nested property (StringValue) is wrong!
-            //var test = Expression.Lambda(funcType, indexExpression, new[] { expression as ParameterExpression });
+            var indexExpression = Expression.MakeIndex(propertyExpression, indexerProperty, new[] { dictionaryKeyConst });
 
             ParameterExpression valueExpression = Expression.Parameter(dictionaryValueType);
-
             BinaryExpression assignment = Expression.Assign(indexExpression, valueExpression);
 
-            //var property = expression.Type.GetProperty(propertyName);
-            //expression = Expression.Property((expression, dictionaryValueType);
+            propertyCollectionEnumerator.MoveNext();
 
-            var test = Expression.Lambda(funcType, expression, new[] { valueExpression });
-
-
+            var test = Expression.Property(indexExpression, propertyCollectionEnumerator.Current);
             return test;
-            
-
-
-
-
-            //var expr = Expression.Lambda<Func<parentType, dictionaryValueType>> (Expression.MakeIndex(propertyExp, indexerProperty, new[] { dictionaryKeyConst }));
-
-
-            //var propType = indexerProperty.PropertyType;
-            //var right = Expression.Constant(Convert.ChangeType("newValue", propertyType));
-            //return expr;
-
-            //return expression2;
-
-
-
-            //Func<myType.GetType(), int> jhkg;
-
-
-            // Attempt 5
-            //===========
-            //var param = Expression.Parameter(dictionary, "t");
-            //var body = Expression.Property(param, "Item", Expression.Constant(dictionaryKeyValue));
-            //var lambda = Expression.Lambda<Func<dictionary.GetType(), dictionaryValueType.GetType()>> (body, param);
-            //var compiled = lambda.Compile();
-
-
-
-
-            // return Expression.Lambda(expression, )
-
-
-
-            //if (dictionaryValueType != typeof(string))
-            //{
-
-            //    var predicateFnType = typeof(Func<,>).MakeGenericType(dictionaryValueType, typeof(bool));
-            //    var parameterExpression = Expression.Parameter(elementType);
-
-            //    recurse...
-            //    Expression body = BuildNestedExpression(dictionaryGetItemExpression, propertyCollectionEnumerator, rule, options, type);
-
-            //    var predicate = Expression.Lambda(predicateFnType, body, parameterExpression);
-
-            //    var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { elementType }, expression);
-
-            //    return Expression.Call(
-            //        typeof(Queryable),
-            //        "Any",
-            //        new[] { elementType },
-            //        queryable,
-            //        predicate
-            //    );
-
-            //}
-
-
-
-
-            //ParameterExpression valueBag = Expression.Parameter(propertyType, "valueBag");
-            //ConstantExpression key = Expression.Constant(dictionaryKeyValue, dictionaryKeyType);
-            //ParameterExpression result = Expression.Parameter(dictionaryValueType, "result");
-
-            //BlockExpression block = Expression.Block(
-            //    new[] { result },               //make the result a variable in scope for the block           
-            //    Expression.Assign(result, Expression.Property(valueBag, "Item", key)),
-            //    result                          //last value Expression becomes the return of the block 
-            //);
-
-            //var indexExpression = Expression.Property(valueBag, "Item", key);
-
-
-            //var predicateFnType = typeof(Func<,>).MakeGenericType(dictionaryValueType, typeof(bool));
-            //Expression body = BuildNestedExpression(dictionaryGetItemExpression, propertyCollectionEnumerator, rule, options, type);
-
-            ////return body;
-
-            ////Expression body = BuildNestedExpression(result, propertyCollectionEnumerator, rule, options, type);
-            //var predicate = Expression.Lambda(body, key);
-
-            //var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { propertyType }, expression);
-            ////var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { dictionaryKeyValuePairType }, expression);
-
-            //return queryable;
-
-            //return Expression.Call(
-            //    typeof(Queryable),
-            //    "Any",
-            //    new[] { propertyType },
-            //    queryable,
-            //    predicate
-            //);
-
         }
-
-
-        //static Func<Tin, Tout> GetFactory<Tin, Tout>()
-        //{
-        //    return (Func<Tin, Tout>)GetFactory(typeof(Tin), typeof(Tout));
-        //}
-        //static object GetFactory(Type inputType, Type outputType)
-        //{
-        //    Type funcType = typeof(Func<,>).MakeGenericType(inputType, outputType);
-        //    MethodInfo method = typeof(QueryBuilder).GetMethod("CreateFunc",
-        //        BindingFlags.NonPublic | BindingFlags.Static);
-        //    return Delegate.CreateDelegate(funcType, method);
-        //}
-
-        //static Foo CreateFunc() 
-        //{
-        //    return new Foo();
-        //}
-
 
 
         private static Expression BuildOperatorExpression(Expression propertyExp, IFilterRule rule, BuildExpressionOptions options, Type type)
