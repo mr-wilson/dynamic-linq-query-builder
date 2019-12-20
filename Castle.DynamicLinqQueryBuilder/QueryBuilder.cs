@@ -347,9 +347,11 @@ namespace Castle.DynamicLinqQueryBuilder
             ParameterExpression valueExpression = Expression.Parameter(dictionaryValueType);
             Expression.Assign(indexExpression, valueExpression);
 
-            propertyCollectionEnumerator.MoveNext();
-            var result = Expression.Property(indexExpression, propertyCollectionEnumerator.Current);
-            return result;
+            return indexExpression;
+
+            //propertyCollectionEnumerator.MoveNext();
+            //var result = Expression.Property(indexExpression, propertyCollectionEnumerator.Current);
+            //return result;
         }
 
 
