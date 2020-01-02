@@ -344,14 +344,7 @@ namespace Castle.DynamicLinqQueryBuilder
 
             var indexExpression = Expression.MakeIndex(propertyExpression, indexerProperty, new[] { dictionaryKeyConst });
 
-            ParameterExpression valueExpression = Expression.Parameter(dictionaryValueType);
-            Expression.Assign(indexExpression, valueExpression);
-
             return indexExpression;
-
-            //propertyCollectionEnumerator.MoveNext();
-            //var result = Expression.Property(indexExpression, propertyCollectionEnumerator.Current);
-            //return result;
         }
 
 
