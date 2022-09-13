@@ -281,42 +281,86 @@ namespace Castle.DynamicLinqQueryBuilder
             while (propertyCollectionEnumerator.MoveNext())
             {
                 var propertyName = propertyCollectionEnumerator.Current;
-                var property = expression.Type.GetProperty(propertyName);
-                expression = Expression.Property(expression, property);
-
-                var propertyType = property.PropertyType;
-                var enumerable = propertyType.GetInterface("IEnumerable`1");
-                if (propertyType != typeof(string) && enumerable != null)
+                if (propertyName.Contains("["))
                 {
-                    var elementType = enumerable.GetGenericArguments()[0];
-                    var predicateFnType = typeof(Func<,>).MakeGenericType(elementType, typeof(bool));
-                    var parameterExpression = Expression.Parameter(elementType);
-
-                    Expression body = BuildNestedExpression(parameterExpression, propertyCollectionEnumerator, rule, options, type);
-                    var predicate = Expression.Lambda(predicateFnType, body, parameterExpression);
-
-                    var notnull = Expression.NotEqual(expression, Expression.Constant(null, typeof(object)));
-
-                    var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { elementType }, expression);
-
-
-                    return Expression.AndAlso(notnull,Expression.Call(
-                        typeof(Queryable),
-                        "Any",
-                        new[] { elementType },
-                        queryable,
-                        predicate
-                    ));
+                    expression = BuildElementAccessExpression(expression, propertyCollectionEnumerator, rule, options, type);
                 }
-                else if (!expression.Type.IsValueType && propertyType != typeof(string))
+                else
                 {
-                    var notnull = IsNotNull(expression);
-                    Expression body = BuildNestedExpression(expression, propertyCollectionEnumerator, rule, options, type);
-                    return Expression.AndAlso(notnull, body);
+                    var property = expression.Type.GetProperty(propertyName);
+                    expression = Expression.Property(expression, property);
+
+                    var propertyType = property.PropertyType;
+                    var enumerable = propertyType.GetInterface("IEnumerable`1");
+                    if (propertyType != typeof(string) && enumerable != null)
+                    {
+                        var elementType = enumerable.GetGenericArguments()[0];
+                        var predicateFnType = typeof(Func<,>).MakeGenericType(elementType, typeof(bool));
+                        var parameterExpression = Expression.Parameter(elementType);
+
+                        Expression body = BuildNestedExpression(parameterExpression, propertyCollectionEnumerator, rule, options, type);
+                        var predicate = Expression.Lambda(predicateFnType, body, parameterExpression);
+
+                        var notnull = Expression.NotEqual(expression, Expression.Constant(null, typeof(object)));
+
+                        var queryable = Expression.Call(typeof(Queryable), "AsQueryable", new[] { elementType }, expression);
+
+
+                        return Expression.AndAlso(notnull,Expression.Call(
+                            typeof(Queryable),
+                            "Any",
+                            new[] { elementType },
+                            queryable,
+                            predicate
+                        ));
+                    }
+                    else if (!expression.Type.IsValueType && propertyType != typeof(string))
+                    {
+                        var notnull = IsNotNull(expression);
+                        Expression body = BuildNestedExpression(expression, propertyCollectionEnumerator, rule, options, type);
+                        return Expression.AndAlso(notnull, body);
+                    }
                 }
             }
 
             return BuildOperatorExpression(expression, rule, options, type);
+        }
+
+        private static Expression BuildElementAccessExpression(Expression expression, IEnumerator<string> propertyCollectionEnumerator, IFilterRule rule, BuildExpressionOptions options, Type type)
+        {
+            var propertyName = propertyCollectionEnumerator.Current;
+
+            var leftBraceIndex = propertyName.IndexOf("[");
+            var rightBraceIndex = propertyName.IndexOf("]");
+
+            if (leftBraceIndex > -1)
+            {
+                propertyName = propertyName.Substring(0, leftBraceIndex);
+            }
+
+            var propertyInfo = expression.Type.GetProperty(propertyName);
+            var propertyExpression = Expression.Property(expression, propertyInfo);
+
+            var propertyType = propertyInfo.PropertyType;
+            var dictionary = propertyType.GetInterface("IDictionary`2");
+
+            Type[] dictionaryTypes = dictionary.GetGenericArguments();
+            Type dictionaryKeyType = dictionaryTypes[0];
+            Type dictionaryValueType = dictionaryTypes[1];
+
+            if (dictionaryKeyType != typeof(string))
+            {
+                throw new NotSupportedException("Only Dictionaries with string keys are supported at present.");
+            }
+
+            var dictionaryKeyValue = propertyCollectionEnumerator.Current.Substring(leftBraceIndex + 2, propertyCollectionEnumerator.Current.Length - leftBraceIndex - 4);
+
+            PropertyInfo indexerProperty = dictionary.GetProperty("Item");
+            var dictionaryKeyConst = Expression.Constant(dictionaryKeyValue);
+
+            var indexExpression = Expression.MakeIndex(propertyExpression, indexerProperty, new[] { dictionaryKeyConst });
+
+            return indexExpression;
         }
 
         private static Expression BuildOperatorExpression(Expression propertyExp, IFilterRule rule, BuildExpressionOptions options, Type type)
